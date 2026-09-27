@@ -1,0 +1,68 @@
+package com.asfaltosonoro.dplayer.player
+
+import android.app.PendingIntent
+import android.content.Intent
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaSessionService
+import com.asfaltosonoro.dplayer.MainActivity
+
+/**
+ * Background playback + MediaSession.
+ *
+ * Using MediaSessionService gives us, for free and without extra weight:
+ *  - a persistent foreground notification with play/pause/next/prev
+ *  - standard ACTION_MEDIA_BUTTON handling -> steering wheel / BT remote
+ *    buttons "just work" system-side, no custom BroadcastReceiver needed
+ *  - proper audio focus handling via ExoPlayer's built-in AudioFocus manager
+ * This is the lightest way to get hardware-button support on Android 6+,
+ * which is why it's wired in from the start rather than bolted on later.
+ */
+class PlaybackService : MediaSessionService() {
+
+    private lateinit var player: ExoPlayer
+    private var mediaSession: MediaSession? = null
+
+    override fun onCreate() {
+        super.onCreate()
+
+        player = ExoPlayer.Builder(this)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                /* handleAudioFocus = */ true,
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .build()
+
+        // Effects chain (EQ/preamp/compressor/AGP) attaches to this player's
+        // audio session id — see AudioEffectsChain.
+        AudioEffectsChain.attach(player.audioSessionId)
+
+        val openAppIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(openAppIntent)
+            .build()
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
+
+    override fun onDestroy() {
+        AudioEffectsChain.release()
+        mediaSession?.run {
+            player.release()
+            release()
+            mediaSession = null
+        }
+        super.onDestroy()
+    }
+}
