@@ -58,6 +58,7 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
 
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-service:2.8.4")
@@ -78,6 +79,7 @@ dependencies {
     // UPnP/DLNA client (browsing + streaming only)
     implementation("org.jupnp:org.jupnp:3.0.3")
     implementation("org.jupnp:org.jupnp.support:3.0.3")
+    implementation("org.jupnp:org.jupnp.android:3.0.3")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

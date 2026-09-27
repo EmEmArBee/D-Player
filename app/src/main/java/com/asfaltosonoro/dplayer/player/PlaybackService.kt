@@ -5,9 +5,11 @@ import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.asfaltosonoro.dplayer.MainActivity
+import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
 
 /**
  * Background playback + MediaSession.
@@ -24,11 +26,13 @@ class PlaybackService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
     private var mediaSession: MediaSession? = null
+    private var crossfadeController: CrossfadeController? = null
 
     override fun onCreate() {
         super.onCreate()
 
         player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(MultiSchemeDataSourceFactory(this)))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -40,8 +44,14 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         // Effects chain (EQ/preamp/compressor/AGP) attaches to this player's
-        // audio session id — see AudioEffectsChain.
+        // audio session id — see AudioEffectsChain. Published on the
+        // in-process bridge too, so the UI's VisualizerEngine can attach
+        // without any IPC (see PlaybackServiceBridge).
         AudioEffectsChain.attach(player.audioSessionId)
+        PlaybackServiceBridge.setAudioSessionId(player.audioSessionId)
+        AudioEffectsChain.restoreFrom(PlayerPreferencesHolder.get(this))
+
+        crossfadeController = CrossfadeController(player, PlayerPreferencesHolder.get(this))
 
         val openAppIntent = PendingIntent.getActivity(
             this, 0,
@@ -58,6 +68,8 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         AudioEffectsChain.release()
+        crossfadeController?.release()
+        PlaybackServiceBridge.clear()
         mediaSession?.run {
             player.release()
             release()

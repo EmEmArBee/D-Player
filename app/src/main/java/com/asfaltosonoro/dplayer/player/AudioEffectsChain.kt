@@ -5,6 +5,7 @@ import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Equalizer
 import android.media.audiofx.PresetReverb
 import android.os.Build
+import com.asfaltosonoro.dplayer.settings.PlayerPreferences
 
 /**
  * Owns the platform AudioEffect chain (Equalizer + BassBoost-as-preamp-boost
@@ -52,8 +53,29 @@ object AudioEffectsChain {
 
     fun bandRange(): Pair<Short, Short> = equalizer?.bandLevelRange?.let { it[0] to it[1] } ?: (0.toShort() to 0.toShort())
 
+    fun bandCount(): Int = equalizer?.numberOfBands?.toInt() ?: 0
+
+    /** Center frequency in Hz for a given band index, for UI labels. */
+    fun bandCenterFreqHz(bandIndex: Int): Int =
+        (equalizer?.getCenterFreq(bandIndex.toShort()) ?: 0) / 1000
+
     fun setPreampBoost(strength: Short) {
         bassBoost?.setStrength(strength) // 0..1000
+    }
+
+    fun setCompressorAgpEnabled(value: Boolean) {
+        dynamicsProcessing?.enabled = value && enabled
+    }
+
+    /** Re-applies saved EQ/preamp/compressor values right after attach(), so a
+     *  fresh service start doesn't reset the user's settings back to flat. */
+    fun restoreFrom(prefs: PlayerPreferences) {
+        val bandCount = equalizer?.numberOfBands?.toInt() ?: 0
+        for (i in 0 until bandCount) {
+            setBand(i, prefs.eqBand(i))
+        }
+        setPreampBoost(prefs.preampStrength)
+        setCompressorAgpEnabled(prefs.compressorAgpEnabled)
     }
 
     fun release() {

@@ -3,54 +3,114 @@ package com.asfaltosonoro.dplayer.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.media3.session.MediaController
+import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
+import com.asfaltosonoro.dplayer.skin.SkinManager
 
-/** What's shown in the central visual area; tap cycles through the three,
- *  matching the behaviour annotated in the reference screenshots. */
-private enum class VisualMode { OSCILLOSCOPE, VU_METER, FFT }
+/** Full-screen mode when "Full Screen VU-Meters" is on in Settings. */
+private enum class FullScreenVisual { OSCILLOSCOPE, FFT, VU_METER }
+
+/** Default mode (no full-screen VU): only these two are tap-cyclable, VU is an optional overlay. */
+private enum class CompactVisual { OSCILLOSCOPE, FFT }
 
 /**
  * Top-level layout: shortcut bar -> visual area (tap to cycle) -> transport,
- * mirroring the reference screenshots. Real folder-shortcut config, EQ
- * screen and file browser are separate screens (see ui/ package, TODO:
- * ShortcutBarConfig.kt, EqualizerScreen.kt, FileBrowserScreen.kt — next
- * pass); this scaffold wires the always-visible player shell + tap-to-cycle
- * visualizer so the app already runs end-to-end.
+ * mirroring the reference screenshots.
+ *
+ * Visualizer behaviour (per user spec):
+ *  - Settings "Full Screen VU-Meters" OFF (default): tap cycles
+ *    Oscilloscope <-> FFT; a small corner toggle turns the VU-meter into a
+ *    semi-transparent overlay on top of whichever of the two is showing.
+ *  - Settings "Full Screen VU-Meters" ON: tap cycles Oscilloscope -> FFT ->
+ *    VU-meter, all full screen (matches the old 3-way behaviour); the corner
+ *    overlay toggle is hidden since it doesn't apply in this mode.
  */
 @Composable
-fun PlayerScreen(controller: MediaController?) {
-    var visualMode by remember { mutableStateOf(VisualMode.OSCILLOSCOPE) }
+fun PlayerScreen(
+    controller: MediaController?,
+    onOpenSettings: () -> Unit,
+    onOpenEqualizer: () -> Unit,
+    onOpenShortcut: (Int) -> Unit,
+) {
+    val context = LocalContext.current
+    val prefs = remember { PlayerPreferencesHolder.get(context) }
+    val skinManager = remember { SkinManager(context) }
+    val skin = remember { skinManager.load() }
+    var fullScreenVu by remember { mutableStateOf(prefs.fullScreenVuMeters) }
+    var vuOverlayOn by remember { mutableStateOf(prefs.vuOverlayEnabled) }
+
+    var compactMode by remember { mutableStateOf(CompactVisual.OSCILLOSCOPE) }
+    var fullScreenMode by remember { mutableStateOf(FullScreenVisual.OSCILLOSCOPE) }
+
+    val frame = rememberVisualizerFrame()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ShortcutBar(onOptions = { /* TODO: open settings */ })
+        ShortcutBar(onOptions = onOpenSettings, onEqualizer = onOpenEqualizer, onShortcut = onOpenShortcut)
 
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .clickable {
-                    visualMode = when (visualMode) {
-                        VisualMode.OSCILLOSCOPE -> VisualMode.VU_METER
-                        VisualMode.VU_METER -> VisualMode.FFT
-                        VisualMode.FFT -> VisualMode.OSCILLOSCOPE
+                    if (fullScreenVu) {
+                        fullScreenMode = when (fullScreenMode) {
+                            FullScreenVisual.OSCILLOSCOPE -> FullScreenVisual.FFT
+                            FullScreenVisual.FFT -> FullScreenVisual.VU_METER
+                            FullScreenVisual.VU_METER -> FullScreenVisual.OSCILLOSCOPE
+                        }
+                    } else {
+                        compactMode = when (compactMode) {
+                            CompactVisual.OSCILLOSCOPE -> CompactVisual.FFT
+                            CompactVisual.FFT -> CompactVisual.OSCILLOSCOPE
+                        }
                     }
                 },
             contentAlignment = Alignment.Center,
         ) {
-            when (visualMode) {
-                VisualMode.OSCILLOSCOPE -> OscilloscopeView()
-                VisualMode.VU_METER -> StereoVuMeterView()
-                VisualMode.FFT -> FftSpectrumView()
+            SkinBackgroundLayer(config = skin, modifier = Modifier.fillMaxSize())
+            AlbumArtLayer(controller = controller, config = skin, modifier = Modifier.fillMaxSize())
+
+            if (fullScreenVu) {
+                when (fullScreenMode) {
+                    FullScreenVisual.OSCILLOSCOPE -> OscilloscopeView(frame, Modifier.fillMaxSize())
+                    FullScreenVisual.FFT -> FftSpectrumView(frame, Modifier.fillMaxSize())
+                    FullScreenVisual.VU_METER -> VuMeterView(frame, Modifier.fillMaxSize())
+                }
+            } else {
+                when (compactMode) {
+                    CompactVisual.OSCILLOSCOPE -> OscilloscopeView(frame, Modifier.fillMaxSize())
+                    CompactVisual.FFT -> FftSpectrumView(frame, Modifier.fillMaxSize())
+                }
+                if (vuOverlayOn) {
+                    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.BottomCenter) {
+                        VuMeterView(frame, Modifier.fillMaxWidth().fillMaxHeight(0.4f))
+                    }
+                }
+
+                // Corner toggle for the VU overlay — only relevant in compact mode.
+                IconButton(
+                    onClick = {
+                        vuOverlayOn = !vuOverlayOn
+                        prefs.vuOverlayEnabled = vuOverlayOn
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.GraphicEq,
+                        contentDescription = "Toggle VU-meter overlay",
+                        tint = if (vuOverlayOn) Color(0xFFDFF5E1) else Color.Gray,
+                    )
+                }
             }
         }
 
@@ -59,15 +119,14 @@ fun PlayerScreen(controller: MediaController?) {
 }
 
 @Composable
-private fun ShortcutBar(onOptions: () -> Unit) {
+private fun ShortcutBar(onOptions: () -> Unit, onEqualizer: () -> Unit, onShortcut: (Int) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().background(Color.Black).padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        IconButton(onClick = { /* TODO: open EQ screen */ }) { Icon(Icons.Filled.Tune, contentDescription = "Equalizer") }
-        // 3 configurable folder/source shortcuts
+        IconButton(onClick = onEqualizer) { Icon(Icons.Filled.Tune, contentDescription = "Equalizer") }
         repeat(3) { index ->
-            IconButton(onClick = { /* TODO: browse FolderShortcut[index] */ }) {
+            IconButton(onClick = { onShortcut(index) }) {
                 Icon(Icons.Filled.Folder, contentDescription = "Shortcut $index")
             }
         }

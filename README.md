@@ -7,24 +7,39 @@ visivo/funzionale). Kotlin + Jetpack Compose + Media3/ExoPlayer, min API 23
 ## Stato scaffold (v0.1.0)
 
 Funzionante end-to-end (compila, gira, riproduce):
-- Shell UI: shortcut bar, area visual tap-to-cycle, transport bar
+- Shell UI con navigazione (Player / Settings / Config shortcut / EQ / Browser)
 - PlaybackService con MediaSession (notifica persistente + tasti fisici/BT)
-- SafFileBrowser: browsing reale di cartelle USB/SD via SAF
-- FtpBrowser: browsing reale via FTP (commons-net), compatibile Primitive-FTPd
-- AudioEffectsChain: EQ 4-band + preamp reali; compressor/AGP via
-  DynamicsProcessing (richiede API 28+, no-op sotto)
+- SafFileBrowser (USB/SD), FtpBrowser + FtpDataSource per Media3 (compatibile
+  Primitive-FTPd, playback reale via ftp://), UpnpBrowser via jupnp
+  ContentDirectory Browse (**non ancora testato in CI, vedi nota sotto**)
+- AudioEffectsChain: EQ 4-band + preamp reali, persistiti e ripristinati ad
+  ogni riavvio del service; compressor/AGP via DynamicsProcessing (API 28+,
+  no-op sotto)
+- CrossfadeController: fade-out/fade-in ai bordi traccia (non vero overlap a
+  due player — vedi commento nel file per il perché)
+- VisualizerEngine agganciato via bridge in-process a Oscilloscope/FFT/VU
+  reali (VU-meter semplificato a singolo canale, non stereo L/R separato)
+- Settings: skin (DEFAULT PITCH BLACK / FULL GLASS con vera trasparenza di
+  finestra / CUSTOM con immagine utente), overlay album art, Full Screen
+  VU-Meters toggle
+- File browser: navigazione cartella per cartella, tap per riprodurre,
+  shuffle ricorsivo della cartella madre, selezione multi-cartella
 - GitHub Actions: build automatica APK debug su ogni push/PR
 
-Ancora da implementare (TODO nel codice, cercare `TODO:`):
-- UpnpBrowser: Browse via jupnp ContentDirectory (stub, non ancora collegato)
-- FtpDataSource custom per Media3 (oggi FtpBrowser resta a livello di listing;
-  la riproduzione via ftp:// va agganciata a un DataSource.Factory dedicato)
-- Wiring VisualizerEngine -> Compose (oggi le 3 viste mostrano un placeholder
-  animato/statico, non ancora i dati reali da Visualizer)
-- Schermate: configurazione shortcut (scelta cartella/FTP/UPnP per ognuna
-  delle 3), equalizzatore (UI fader), impostazioni skin, file browser vero
-- Crossfade (dual-player) tra tracce
-- VU-meter L/R discreti (oggi placeholder — serve AudioProcessor custom pre-mix)
+Ancora da fare / a rischio (TODO nel codice, cercare `TODO:`):
+- **UpnpBrowser**: scritto seguendo l'API standard jupnp/Cling ma MAI
+  compilato in CI — è il pezzo con più probabilità di richiedere un fix
+  al primo giro di build (nomi metodi/import leggermente diversi tra
+  versioni jupnp). Se fallisce, guarda l'errore di compilazione e
+  aggiustiamo import/firma dei metodi.
+- Discovery UPnP: oggi lo UDN del server va inserito a mano nella config
+  shortcut; manca una schermata che lista i server trovati dalla ricerca
+  automatica (UpnpServiceHolder già fa `controlPoint.search()` all'avvio).
+- VU-meter L/R discreti (oggi singolo meter — serve AudioProcessor custom
+  pre-mix per uno split stereo reale)
+- Vero crossfade a due player (oggi è fade-out/fade-in sul singolo player)
+- Vertical fader look nell'EQ (oggi slider orizzontali, funzionalmente
+  identici ma esteticamente diversi dallo screenshot di riferimento)
 
 ## Build locale
 
