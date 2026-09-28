@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.jupnp.android.AndroidUpnpService
@@ -21,11 +22,15 @@ object UpnpServiceHolder {
     private val _upnpService = MutableStateFlow<AndroidUpnpService?>(null)
     val upnpService: StateFlow<AndroidUpnpService?> = _upnpService
 
+    private const val TAG = "UpnpServiceHolder"
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val s = service as? AndroidUpnpService ?: return
-            _upnpService.value = s
-            s.get().controlPoint.search()
+            runCatching {
+                val s = service as? AndroidUpnpService ?: return
+                _upnpService.value = s
+                s.get().controlPoint.search()
+            }.onFailure { Log.e(TAG, "jupnp init failed, UPnP shortcuts won't work this session", it) }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -33,12 +38,23 @@ object UpnpServiceHolder {
         }
     }
 
+    /**
+     * Never lets a jupnp failure take the whole app down with it — UPnP is
+     * one of three optional source types, not core functionality. If this
+     * fails, UPnP shortcuts simply won't browse; USB/SD and FTP are
+     * unaffected. Runs off the main thread since jupnp's Android transport
+     * does blocking network setup (multicast socket, etc.) on bind/create.
+     */
     fun bind(context: Context) {
-        context.applicationContext.bindService(
-            Intent(context, org.jupnp.android.AndroidUpnpServiceImpl::class.java),
-            connection,
-            Context.BIND_AUTO_CREATE,
-        )
+        Thread {
+            runCatching {
+                context.applicationContext.bindService(
+                    Intent(context, org.jupnp.android.AndroidUpnpServiceImpl::class.java),
+                    connection,
+                    Context.BIND_AUTO_CREATE,
+                )
+            }.onFailure { Log.e(TAG, "Could not bind AndroidUpnpServiceImpl, UPnP disabled this session", it) }
+        }.start()
     }
 
     fun findDeviceByUdn(udn: String): Device<*, *, *>? {
