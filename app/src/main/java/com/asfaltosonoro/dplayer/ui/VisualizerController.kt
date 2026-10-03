@@ -52,8 +52,11 @@ fun rememberVisualizerFrame(): VisualizerFrame {
     }
 
     LaunchedEffect(Unit) {
-        PlaybackServiceBridge.audioSessionId.collect { id ->
-            if (id != null) engine.start(id) else engine.stop()
+        kotlinx.coroutines.flow.combine(
+            PlaybackServiceBridge.audioSessionId,
+            PlaybackServiceBridge.visualizerPermission,
+        ) { id, granted -> id to granted }.collect { (id, granted) ->
+            if (id != null && granted) engine.start(id) else engine.stop()
         }
     }
 

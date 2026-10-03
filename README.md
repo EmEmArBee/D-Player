@@ -1,5 +1,14 @@
 # D-Player
 
+## ⚠️ Azione richiesta ora, una tantum
+Le build precedenti a questo fix avevano ciascuna una chiave di firma debug
+diversa (runner CI effimero, nessuna keystore persistita). Qualsiasi app
+D-PLAYER già installata su un telefono **non verrà mai aggiornata** da una
+build con la keystore ora fissata in CI — Android rifiuta update con firma
+diversa. **Disinstalla D-PLAYER da ogni dispositivo di test prima di
+installare la prossima build**, poi va tutto a posto per sempre (la keystore
+da qui in avanti è stabile, cache key `dplayer-debug-keystore-v1`).
+
 Audio player Android ottimizzato per head unit (Neutron Player come riferimento
 visivo/funzionale). Kotlin + Jetpack Compose + Media3/ExoPlayer, min API 23
 (Android 6), solo armeabi-v7a/arm64-v8a.

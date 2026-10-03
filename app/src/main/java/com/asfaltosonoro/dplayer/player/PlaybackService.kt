@@ -53,6 +53,22 @@ class PlaybackService : MediaSessionService() {
 
         crossfadeController = CrossfadeController(player, PlayerPreferencesHolder.get(this))
 
+        // ExoPlayer can (re)create its audio session when playback starts;
+        // keep effects + visualizer glued to whatever id is current.
+        val prefsForEffects = PlayerPreferencesHolder.get(this)
+        player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+            override fun onAudioSessionIdChanged(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                audioSessionId: Int,
+            ) {
+                if (audioSessionId > 0) {
+                    AudioEffectsChain.attach(audioSessionId)
+                    AudioEffectsChain.restoreFrom(prefsForEffects)
+                    PlaybackServiceBridge.setAudioSessionId(audioSessionId)
+                }
+            }
+        })
+
         val openAppIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),

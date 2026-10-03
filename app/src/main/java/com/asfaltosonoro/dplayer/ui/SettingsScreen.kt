@@ -29,6 +29,21 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit) {
     val prefs = remember { PlayerPreferencesHolder.get(context) }
 
     var skin by remember { mutableStateOf(skinManager.load()) }
+
+    // FULL GLASS uses a different window theme, only applied at Activity creation:
+    // recreate the Activity right away when switching into/out of it.
+    fun applySkin(newConfig: com.asfaltosonoro.dplayer.skin.SkinConfig) {
+        val glassChanged = (skin.mode == SkinMode.FULL_GLASS) != (newConfig.mode == SkinMode.FULL_GLASS)
+        skinManager.save(newConfig)
+        skin = skinManager.load()
+        if (glassChanged) {
+            var c: android.content.Context = context
+            while (c is android.content.ContextWrapper) {
+                if (c is android.app.Activity) { c.recreate(); break }
+                c = c.baseContext
+            }
+        }
+    }
     var fullScreenVu by remember { mutableStateOf(prefs.fullScreenVuMeters) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -38,8 +53,7 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit) {
                     uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
                 )
             }
-            skinManager.setCustomImage(uri)
-            skin = skinManager.load()
+            applySkin(skin.copy(mode = SkinMode.CUSTOM, customImageUri = uri.toString()))
         }
     }
 
@@ -49,18 +63,13 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit) {
         SectionLabel("Background skin")
         SkinModeRow(
             label = "DEFAULT PITCH BLACK", selected = skin.mode == SkinMode.DEFAULT_PITCH_BLACK,
-            onClick = { skinManager.save(skin.copy(mode = SkinMode.DEFAULT_PITCH_BLACK)); skin = skinManager.load() },
+            onClick = { applySkin(skin.copy(mode = SkinMode.DEFAULT_PITCH_BLACK)) },
         )
         SkinModeRow(
             label = "FULL GLASS (transparent)", selected = skin.mode == SkinMode.FULL_GLASS,
-            onClick = { skinManager.save(skin.copy(mode = SkinMode.FULL_GLASS)); skin = skinManager.load() },
+            onClick = { applySkin(skin.copy(mode = SkinMode.FULL_GLASS)) },
         )
-        if (skin.mode == SkinMode.FULL_GLASS) {
-            Text(
-                "Restart the app for full transparency to take effect.",
-                color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp),
-            )
-        }
+
         SkinModeRow(
             label = "CUSTOM (pick an image)", selected = skin.mode == SkinMode.CUSTOM,
             onClick = { pickImage.launch(arrayOf("image/*")) },

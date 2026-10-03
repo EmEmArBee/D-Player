@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
 import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
 import com.asfaltosonoro.dplayer.skin.SkinManager
@@ -54,8 +55,19 @@ fun PlayerScreen(
 
     val frame = rememberVisualizerFrame()
 
+    // Bars: solid black on the default skin, translucent scrim over glass/custom
+    // so the background stays visible but icons stay readable.
+    val barColor = when (skin.mode) {
+        com.asfaltosonoro.dplayer.skin.SkinMode.DEFAULT_PITCH_BLACK -> Color.Black
+        com.asfaltosonoro.dplayer.skin.SkinMode.FULL_GLASS -> Color(0x33000000)
+        com.asfaltosonoro.dplayer.skin.SkinMode.CUSTOM -> Color(0x88000000)
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+    SkinBackgroundLayer(config = skin, modifier = Modifier.fillMaxSize())
+
     Column(modifier = Modifier.fillMaxSize()) {
-        ShortcutBar(onOptions = onOpenSettings, onEqualizer = onOpenEqualizer, onShortcut = onOpenShortcut)
+        ShortcutBar(barColor, prefs, onOptions = onOpenSettings, onEqualizer = onOpenEqualizer, onShortcut = onOpenShortcut)
 
         Box(
             modifier = Modifier
@@ -77,7 +89,6 @@ fun PlayerScreen(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            SkinBackgroundLayer(config = skin, modifier = Modifier.fillMaxSize())
             AlbumArtLayer(controller = controller, config = skin, modifier = Modifier.fillMaxSize())
 
             if (fullScreenVu) {
@@ -114,30 +125,59 @@ fun PlayerScreen(
             }
         }
 
-        TransportBar(controller = controller)
+        TransportBar(controller = controller, barColor = barColor)
+    }
     }
 }
 
 @Composable
-private fun ShortcutBar(onOptions: () -> Unit, onEqualizer: () -> Unit, onShortcut: (Int) -> Unit) {
+private fun ShortcutBar(
+    barColor: Color,
+    prefs: com.asfaltosonoro.dplayer.settings.PlayerPreferences,
+    onOptions: () -> Unit,
+    onEqualizer: () -> Unit,
+    onShortcut: (Int) -> Unit,
+) {
+    // Same plain white as the transport bar icons, on purpose — no theme
+    // dependency, no ambiguity, easy to eyeball-verify against TransportBar.
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color.Black).padding(8.dp),
+        modifier = Modifier.fillMaxWidth().background(barColor).padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onEqualizer) { Icon(Icons.Filled.Tune, contentDescription = "Equalizer") }
+        BarButton(Icons.Filled.Tune, "EQ", Color.White, onEqualizer)
         repeat(3) { index ->
-            IconButton(onClick = { onShortcut(index) }) {
-                Icon(Icons.Filled.Folder, contentDescription = "Shortcut $index")
-            }
+            val label = remember { prefs.loadShortcut(index)?.label ?: "Set ${index + 1}" }
+            BarButton(Icons.Filled.Folder, label, Color.White) { onShortcut(index) }
         }
-        IconButton(onClick = onOptions) { Icon(Icons.Filled.Settings, contentDescription = "Options") }
+        BarButton(Icons.Filled.Settings, "Options", Color.White, onOptions)
     }
 }
 
 @Composable
-private fun TransportBar(controller: MediaController?) {
+private fun BarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        Icon(icon, contentDescription = label, tint = tint)
+        androidx.compose.material3.Text(label, color = Color.White, fontSize = 10.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun TransportBar(controller: MediaController?, barColor: Color) {
+    // Observe play state so the play/pause icon actually follows the player.
+    var playing by remember(controller) { mutableStateOf(controller?.isPlaying == true) }
+    DisposableEffect(controller) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+        }
+        controller?.addListener(listener)
+        onDispose { controller?.removeListener(listener) }
+    }
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color.Black).padding(12.dp),
+        modifier = Modifier.fillMaxWidth().background(barColor).padding(12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -146,7 +186,6 @@ private fun TransportBar(controller: MediaController?) {
         IconButton(onClick = {
             controller?.let { if (it.isPlaying) it.pause() else it.play() }
         }) {
-            val playing = controller?.isPlaying == true
             Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause", tint = Color.White)
         }
         IconButton(onClick = { controller?.seekToNextMediaItem() }) { Icon(Icons.Filled.FastForward, "Next track", tint = Color.White) }

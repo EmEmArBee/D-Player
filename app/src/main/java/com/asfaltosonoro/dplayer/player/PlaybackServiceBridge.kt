@@ -16,8 +16,17 @@ object PlaybackServiceBridge {
     private val _audioSessionId = MutableStateFlow<Int?>(null)
     val audioSessionId: StateFlow<Int?> = _audioSessionId
 
+    /** Visualizer needs RECORD_AUDIO at runtime; without it capture silently fails. */
+    private val _visualizerPermission = MutableStateFlow(false)
+    val visualizerPermission: StateFlow<Boolean> = _visualizerPermission
+
+    fun setVisualizerPermission(granted: Boolean) {
+        _visualizerPermission.value = granted
+    }
+
     fun setAudioSessionId(id: Int) {
-        _audioSessionId.value = id
+        // 0 = "global mix" / unset: never attach to that, needs system-level permission
+        if (id > 0) _audioSessionId.value = id
     }
 
     fun clear() {
