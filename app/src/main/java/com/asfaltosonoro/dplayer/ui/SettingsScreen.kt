@@ -26,6 +26,20 @@ import com.asfaltosonoro.dplayer.skin.SkinMode
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+/**
+ * Plain top-level fun, not a local one inside a @Composable — avoids a
+ * Kotlin/Compose-compiler quirk where smart-casting a `var` while walking
+ * ContextWrapper.baseContext gets flagged as "captured by a changing
+ * closure" when done as a local function inside composition.
+ */
+private fun findActivity(context: android.content.Context): android.app.Activity? {
+    var current = context
+    while (true) {
+        if (current is android.app.Activity) return current
+        current = (current as? android.content.ContextWrapper)?.baseContext ?: return null
+    }
+}
+
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpenVisualizerAppearance: () -> Unit) {
     val context = LocalContext.current
@@ -40,25 +54,10 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
         val glassChanged = (skin.mode == SkinMode.FULL_GLASS) != (newConfig.mode == SkinMode.FULL_GLASS)
         skinManager.save(newConfig)
         skin = skinManager.load()
-        if (glassChanged) {
-            var c: android.content.Context = context
-            while (c is android.content.ContextWrapper) {
-                if (c is android.app.Activity) { c.recreate(); break }
-                c = c.baseContext
-            }
-        }
+        if (glassChanged) findActivity(context)?.recreate()
     }
     var fullScreenVu by remember { mutableStateOf(prefs.fullScreenVuMeters) }
     var backupMessage by remember { mutableStateOf<String?>(null) }
-
-    fun findActivity(): android.app.Activity? {
-        var c: android.content.Context = context
-        while (c is android.content.ContextWrapper) {
-            if (c is android.app.Activity) return c
-            c = c.baseContext
-        }
-        return null
-    }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -80,7 +79,7 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
             // see AudioEffectsChain), then recreate so every screen re-reads
             // the freshly-imported SharedPreferences instead of stale remember{} state.
             AudioEffectsChain.restoreFrom(prefs)
-            findActivity()?.recreate()
+            findActivity(context)?.recreate()
         }.onFailure { backupMessage = "Import failed: ${it.message}" }
     }
 
