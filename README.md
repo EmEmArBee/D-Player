@@ -47,8 +47,6 @@ Ancora da fare / a rischio (TODO nel codice, cercare `TODO:`):
 - VU-meter L/R discreti (oggi singolo meter — serve AudioProcessor custom
   pre-mix per uno split stereo reale)
 - Vero crossfade a due player (oggi è fade-out/fade-in sul singolo player)
-- Vertical fader look nell'EQ (oggi slider orizzontali, funzionalmente
-  identici ma esteticamente diversi dallo screenshot di riferimento)
 
 ## Build locale
 
@@ -62,3 +60,11 @@ gradle assembleDebug
 
 `.github/workflows/build-debug.yml` produce un artifact `D-Player-debug`
 scaricabile dalla tab Actions ad ogni push su `main`.
+
+## Aggiunte successive
+- **Persistenza playback**: coda/traccia/posizione salvate (ogni cambio
+  traccia, pausa, e ogni 10s durante la riproduzione) e ripristinate
+  all'avvio del service — preparate ma in pausa, non parte da sola.
+- **Import/export impostazioni**: Settings → Backup. Dump/restore generico
+  di tutte le SharedPreferences (shortcut, skin, EQ, aspetto visualizer) in
+  un file .json scelto dall'utente via SAF. Non include la coda in corso.

@@ -18,9 +18,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asfaltosonoro.dplayer.player.AudioEffectsChain
 import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
+import com.asfaltosonoro.dplayer.settings.SettingsBackup
 import com.asfaltosonoro.dplayer.skin.SkinManager
 import com.asfaltosonoro.dplayer.skin.SkinMode
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpenVisualizerAppearance: () -> Unit) {
@@ -45,6 +49,40 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
         }
     }
     var fullScreenVu by remember { mutableStateOf(prefs.fullScreenVuMeters) }
+    var backupMessage by remember { mutableStateOf<String?>(null) }
+
+    fun findActivity(): android.app.Activity? {
+        var c: android.content.Context = context
+        while (c is android.content.ContextWrapper) {
+            if (c is android.app.Activity) return c
+            c = c.baseContext
+        }
+        return null
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(SettingsBackup.export(context).toByteArray()) }
+        }.onSuccess { backupMessage = "Settings exported." }
+            .onFailure { backupMessage = "Export failed: ${it.message}" }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            val text = context.contentResolver.openInputStream(uri)?.use { stream ->
+                BufferedReader(InputStreamReader(stream)).readText()
+            } ?: throw IllegalStateException("empty file")
+            if (!SettingsBackup.import(context, text)) throw IllegalStateException("file non riconosciuto")
+        }.onSuccess {
+            // Re-apply EQ/preamp/compressor live (same-process singleton —
+            // see AudioEffectsChain), then recreate so every screen re-reads
+            // the freshly-imported SharedPreferences instead of stale remember{} state.
+            AudioEffectsChain.restoreFrom(prefs)
+            findActivity()?.recreate()
+        }.onFailure { backupMessage = "Import failed: ${it.message}" }
+    }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -92,8 +130,6 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
             "Off: tap cycles oscilloscope/FFT, VU-meter available as an overlay. On: VU-meter becomes a third full-screen mode.",
             color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
-
-        SectionLabel("Visualizer")
         Row(
             modifier = Modifier.fillMaxWidth().clickable { onOpenVisualizerAppearance() }.padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -119,6 +155,20 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
                 Text(shortcut?.type?.name ?: "", color = Color.Gray, fontSize = 12.sp)
             }
         }
+        SectionLabel("Backup")
+        Row(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Button(onClick = { exportLauncher.launch("dplayer-settings.json") }) { Text("Export settings") }
+            Spacer(Modifier.width(12.dp))
+            OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("Import settings") }
+        }
+        Text(
+            "Shortcuts, skin, EQ, visualizer colors — not the current playback queue.",
+            color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        backupMessage?.let {
+            Text(it, color = Color(0xFFDFF5E1), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+
         Spacer(Modifier.height(32.dp))
     }
 }

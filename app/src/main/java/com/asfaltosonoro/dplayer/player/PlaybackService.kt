@@ -2,13 +2,17 @@ package com.asfaltosonoro.dplayer.player
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.net.Uri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.asfaltosonoro.dplayer.MainActivity
+import com.asfaltosonoro.dplayer.settings.PlaybackStateStore
 import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
 
 /**
@@ -27,6 +31,7 @@ class PlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private var mediaSession: MediaSession? = null
     private var crossfadeController: CrossfadeController? = null
+    private var persistence: PlaybackPersistence? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -52,6 +57,24 @@ class PlaybackService : MediaSessionService() {
         AudioEffectsChain.restoreFrom(PlayerPreferencesHolder.get(this))
 
         crossfadeController = CrossfadeController(player, PlayerPreferencesHolder.get(this))
+
+        // Resume where we left off: restore the saved queue/index/position,
+        // prepared but paused (never auto-blast audio the instant the car
+        // turns on — the person taps play when ready).
+        val stateStore = PlaybackStateStore(this)
+        stateStore.load()?.let { saved ->
+            val mediaItems = saved.items.map {
+                MediaItem.Builder()
+                    .setUri(Uri.parse(it.uri))
+                    .setMediaMetadata(MediaMetadata.Builder().setTitle(it.title).build())
+                    .build()
+            }
+            runCatching {
+                player.setMediaItems(mediaItems, saved.index, saved.positionMs)
+                player.prepare()
+            }
+        }
+        persistence = PlaybackPersistence(player, stateStore)
 
         // ExoPlayer can (re)create its audio session when playback starts;
         // keep effects + visualizer glued to whatever id is current.
@@ -85,6 +108,7 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         AudioEffectsChain.release()
         crossfadeController?.release()
+        persistence?.release()
         PlaybackServiceBridge.clear()
         mediaSession?.run {
             player.release()
