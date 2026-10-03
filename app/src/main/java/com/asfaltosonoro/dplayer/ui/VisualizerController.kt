@@ -22,45 +22,55 @@ data class VisualizerFrame(
 /**
  * Starts/stops VisualizerEngine as the current PlaybackService's audio
  * session id appears/disappears, and turns its raw byte callbacks into a
- * Compose-friendly VisualizerFrame. Same-process assumption as
- * PlaybackServiceBridge — see that file for why this is safe here.
+ * Compose-friendly VisualizerFrame.
+ *
+ * Rendering-optimization pass: the byte->float conversion buffers are
+ * reused across callbacks instead of allocating a new FloatArray every
+ * frame (Visualizer fires at up to ~20-60Hz) — same array instance
+ * overwritten in place, only reallocated if the capture size actually
+ * changes (it doesn't, in practice, once started). Cuts GC churn, which
+ * matters more than micro-optimizing the draw calls on weak head unit SoCs.
  */
 @Composable
-fun rememberVisualizerFrame(): VisualizerFrame {
+fun rememberVisualizerFrame(hd: Boolean = false): VisualizerFrame {
     var frame by remember { mutableStateOf(VisualizerFrame()) }
 
-    val engine = remember {
+    val engine = remember(hd) {
+        var waveBuf = FloatArray(0)
+        var fftBuf = FloatArray(0)
+
         VisualizerEngine(
             onWaveform = { bytes ->
-                val samples = FloatArray(bytes.size) { i -> ((bytes[i].toInt() and 0xFF) - 128) / 128f }
+                if (waveBuf.size != bytes.size) waveBuf = FloatArray(bytes.size)
                 var sumSquares = 0f
-                for (s in samples) sumSquares += s * s
-                val rms = sqrt(sumSquares / samples.size.coerceAtLeast(1))
-                frame = frame.copy(waveform = samples, level = rms.coerceIn(0f, 1f))
+                for (i in bytes.indices) {
+                    val s = ((bytes[i].toInt() and 0xFF) - 128) / 128f
+                    waveBuf[i] = s
+                    sumSquares += s * s
+                }
+                val rms = sqrt(sumSquares / bytes.size.coerceAtLeast(1))
+                frame = frame.copy(waveform = waveBuf, level = rms.coerceIn(0f, 1f))
             },
             onFft = { bytes ->
                 val n = bytes.size / 2
-                val mags = FloatArray(n)
+                if (fftBuf.size != n) fftBuf = FloatArray(n)
                 for (i in 0 until n) {
                     val real = bytes[i * 2].toFloat()
                     val imag = if (i * 2 + 1 < bytes.size) bytes[i * 2 + 1].toFloat() else 0f
-                    mags[i] = (hypot(real, imag) / 128f).coerceIn(0f, 1f)
+                    fftBuf[i] = (hypot(real, imag) / 128f).coerceIn(0f, 1f)
                 }
-                frame = frame.copy(fftMagnitudes = mags)
+                frame = frame.copy(fftMagnitudes = fftBuf)
             },
         )
     }
 
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.flow.combine(
-            PlaybackServiceBridge.audioSessionId,
-            PlaybackServiceBridge.visualizerPermission,
-        ) { id, granted -> id to granted }.collect { (id, granted) ->
-            if (id != null && granted) engine.start(id) else engine.stop()
+    LaunchedEffect(engine) {
+        PlaybackServiceBridge.audioSessionId.collect { id ->
+            if (id != null) engine.start(id, hd) else engine.stop()
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(engine) {
         onDispose { engine.stop() }
     }
 

@@ -30,11 +30,12 @@ class VisualizerEngine(private val onWaveform: (ByteArray) -> Unit, private val 
 
     private var visualizer: Visualizer? = null
 
-    fun start(audioSessionId: Int) {
+    fun start(audioSessionId: Int, hd: Boolean = false) {
         stop()
         runCatching {
             visualizer = Visualizer(audioSessionId).apply {
                 captureSize = Visualizer.getCaptureSizeRange()[1].coerceAtMost(1024)
+                val rate = if (hd) Visualizer.getMaxCaptureRate() else Visualizer.getMaxCaptureRate() / 2
                 setDataCaptureListener(
                     object : Visualizer.OnDataCaptureListener {
                         override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray, samplingRate: Int) {
@@ -44,7 +45,7 @@ class VisualizerEngine(private val onWaveform: (ByteArray) -> Unit, private val 
                             onFft(fft)
                         }
                     },
-                    Visualizer.getMaxCaptureRate() / 2, // ~half max rate: smooth but not CPU-hungry
+                    rate, // half max by default — smooth without being CPU-hungry; HD setting uses full rate
                     true,
                     true,
                 )

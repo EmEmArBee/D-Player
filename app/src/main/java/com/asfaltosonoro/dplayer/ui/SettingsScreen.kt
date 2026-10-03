@@ -23,7 +23,7 @@ import com.asfaltosonoro.dplayer.skin.SkinManager
 import com.asfaltosonoro.dplayer.skin.SkinMode
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpenVisualizerAppearance: () -> Unit) {
     val context = LocalContext.current
     val skinManager = remember { SkinManager(context) }
     val prefs = remember { PlayerPreferencesHolder.get(context) }
@@ -92,6 +92,16 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit) {
             "Off: tap cycles oscilloscope/FFT, VU-meter available as an overlay. On: VU-meter becomes a third full-screen mode.",
             color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
+
+        SectionLabel("Visualizer")
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onOpenVisualizerAppearance() }.padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Oscilloscope / FFT / VU-meter appearance", color = Color.White)
+            Text("›", color = Color.Gray, fontSize = 18.sp)
+        }
 
         SectionLabel("Folder shortcuts")
         repeat(3) { index ->

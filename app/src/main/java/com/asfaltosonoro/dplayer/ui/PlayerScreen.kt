@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
 import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
 import com.asfaltosonoro.dplayer.skin.SkinManager
+import com.asfaltosonoro.dplayer.settings.VisualizerAppearanceManager
 
 /** Full-screen mode when "Full Screen VU-Meters" is on in Settings. */
 private enum class FullScreenVisual { OSCILLOSCOPE, FFT, VU_METER }
@@ -47,13 +48,15 @@ fun PlayerScreen(
     val prefs = remember { PlayerPreferencesHolder.get(context) }
     val skinManager = remember { SkinManager(context) }
     val skin = remember { skinManager.load() }
+    val appearanceManager = remember { VisualizerAppearanceManager(context) }
+    val appearance = remember { appearanceManager.load() }
     var fullScreenVu by remember { mutableStateOf(prefs.fullScreenVuMeters) }
     var vuOverlayOn by remember { mutableStateOf(prefs.vuOverlayEnabled) }
 
     var compactMode by remember { mutableStateOf(CompactVisual.OSCILLOSCOPE) }
     var fullScreenMode by remember { mutableStateOf(FullScreenVisual.OSCILLOSCOPE) }
 
-    val frame = rememberVisualizerFrame()
+    val frame = rememberVisualizerFrame(hd = appearance.hdRendering)
 
     // Bars: solid black on the default skin, translucent scrim over glass/custom
     // so the background stays visible but icons stay readable.
@@ -93,18 +96,18 @@ fun PlayerScreen(
 
             if (fullScreenVu) {
                 when (fullScreenMode) {
-                    FullScreenVisual.OSCILLOSCOPE -> OscilloscopeView(frame, Modifier.fillMaxSize())
-                    FullScreenVisual.FFT -> FftSpectrumView(frame, Modifier.fillMaxSize())
-                    FullScreenVisual.VU_METER -> VuMeterView(frame, Modifier.fillMaxSize())
+                    FullScreenVisual.OSCILLOSCOPE -> OscilloscopeView(frame, appearance, Modifier.fillMaxSize())
+                    FullScreenVisual.FFT -> FftSpectrumView(frame, appearance, Modifier.fillMaxSize())
+                    FullScreenVisual.VU_METER -> VuMeterView(frame, appearance, Modifier.fillMaxSize())
                 }
             } else {
                 when (compactMode) {
-                    CompactVisual.OSCILLOSCOPE -> OscilloscopeView(frame, Modifier.fillMaxSize())
-                    CompactVisual.FFT -> FftSpectrumView(frame, Modifier.fillMaxSize())
+                    CompactVisual.OSCILLOSCOPE -> OscilloscopeView(frame, appearance, Modifier.fillMaxSize())
+                    CompactVisual.FFT -> FftSpectrumView(frame, appearance, Modifier.fillMaxSize())
                 }
                 if (vuOverlayOn) {
                     Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.BottomCenter) {
-                        VuMeterView(frame, Modifier.fillMaxWidth().fillMaxHeight(0.4f))
+                        VuMeterView(frame, appearance, Modifier.fillMaxWidth().fillMaxHeight(0.4f))
                     }
                 }
 

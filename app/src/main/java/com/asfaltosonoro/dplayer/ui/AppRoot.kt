@@ -26,7 +26,9 @@ fun AppRoot(controller: MediaController?) {
         is Screen.Settings -> SettingsScreen(
             onBack = { screen = Screen.Player },
             onConfigureShortcut = { index -> screen = Screen.ShortcutConfig(index) },
+            onOpenVisualizerAppearance = { screen = Screen.VisualizerAppearance },
         )
+        is Screen.VisualizerAppearance -> VisualizerAppearanceScreen(onBack = { screen = Screen.Settings })
         is Screen.ShortcutConfig -> ShortcutConfigScreen(
             index = s.index,
             onDone = { screen = Screen.Settings },

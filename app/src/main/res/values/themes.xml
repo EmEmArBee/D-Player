@@ -13,5 +13,10 @@
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
+        <!-- Without this a translucent window just shows black: there's
+             nothing else in the task stack behind a freshly-launched
+             Activity. This tells the system to composite the device's own
+             wallpaper underneath. -->
+        <item name="android:windowShowWallpaper">true</item>
     </style>
 </resources>
