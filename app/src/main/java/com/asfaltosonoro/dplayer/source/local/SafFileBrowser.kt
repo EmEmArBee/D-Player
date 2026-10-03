@@ -25,8 +25,20 @@ class SafFileBrowser(private val context: Context) : SourceBrowser {
 
     override suspend fun list(uri: String): List<BrowseEntry> = withContext(Dispatchers.IO) {
         val parsed = Uri.parse(uri)
-        val parentDocumentId = runCatching { DocumentsContract.getDocumentId(parsed) }.getOrNull()
-            ?: return@withContext emptyList()
+        // The very first call for a shortcut gets the raw TREE uri from
+        // ACTION_OPEN_DOCUMENT_TREE (content://authority/tree/treeId, no
+        // "document" segment) — getDocumentId() throws on that; it only
+        // works on document uris (.../tree/treeId/document/docId), which is
+        // what every subsequent nested call passes. This was the regression
+        // that broke browsing entirely: every root-level list() silently
+        // returned empty because getDocumentId() always threw on it.
+        val parentDocumentId = runCatching {
+            if (DocumentsContract.isDocumentUri(context, parsed)) {
+                DocumentsContract.getDocumentId(parsed)
+            } else {
+                DocumentsContract.getTreeDocumentId(parsed)
+            }
+        }.getOrNull() ?: return@withContext emptyList()
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(parsed, parentDocumentId)
 
         val projection = arrayOf(
