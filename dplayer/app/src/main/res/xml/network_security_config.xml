@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allows plain FTP / local UPnP servers on LAN (e.g. phone hotspot to head unit) -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
