@@ -28,6 +28,7 @@ import com.asfaltosonoro.dplayer.source.BrowseEntry
 import com.asfaltosonoro.dplayer.source.SourceBrowser
 import com.asfaltosonoro.dplayer.source.SourceType
 import com.asfaltosonoro.dplayer.source.ftp.FtpBrowser
+import com.asfaltosonoro.dplayer.source.local.LocalPathBrowser
 import com.asfaltosonoro.dplayer.source.local.SafFileBrowser
 import com.asfaltosonoro.dplayer.source.upnp.UpnpBrowser
 import kotlinx.coroutines.launch
@@ -61,10 +62,11 @@ fun FileBrowserScreen(
     }
 
     val browser: SourceBrowser = remember(shortcut) {
-        when (shortcut.type) {
-            SourceType.LOCAL_SAF -> SafFileBrowser(context)
-            SourceType.FTP -> FtpBrowser()
-            SourceType.UPNP -> UpnpBrowser(context)
+        when {
+            shortcut.type == SourceType.LOCAL_SAF && LocalPathBrowser.isLocalPathUri(shortcut.uri) -> LocalPathBrowser()
+            shortcut.type == SourceType.LOCAL_SAF -> SafFileBrowser(context)
+            shortcut.type == SourceType.FTP -> FtpBrowser()
+            else -> UpnpBrowser(context)
         }
     }
 

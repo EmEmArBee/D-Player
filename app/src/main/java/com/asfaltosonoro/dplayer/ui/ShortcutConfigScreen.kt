@@ -4,6 +4,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -18,6 +20,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.asfaltosonoro.dplayer.settings.PlayerPreferencesHolder
 import com.asfaltosonoro.dplayer.source.FolderShortcut
 import com.asfaltosonoro.dplayer.source.SourceType
+import com.asfaltosonoro.dplayer.source.local.LocalPathBrowser
 
 @Composable
 fun ShortcutConfigScreen(index: Int, onDone: () -> Unit) {
@@ -28,6 +31,8 @@ fun ShortcutConfigScreen(index: Int, onDone: () -> Unit) {
     var type by remember { mutableStateOf(existing?.type ?: SourceType.LOCAL_SAF) }
     var label by remember { mutableStateOf(existing?.label ?: "Shortcut ${index + 1}") }
     var localUri by remember { mutableStateOf(existing?.uri?.takeIf { type == SourceType.LOCAL_SAF }) }
+    var manualPath by remember { mutableStateOf(existing?.uri?.takeIf { LocalPathBrowser.isLocalPathUri(it) }?.removePrefix("localpath://") ?: "") }
+    var pickerError by remember { mutableStateOf<String?>(null) }
 
     var ftpHost by remember { mutableStateOf("") }
     var ftpPort by remember { mutableStateOf("21") }
@@ -51,7 +56,7 @@ fun ShortcutConfigScreen(index: Int, onDone: () -> Unit) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState())) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onDone) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White) }
             Text("Configure shortcut ${index + 1}", color = Color.White, fontSize = 20.sp)
@@ -73,7 +78,34 @@ fun ShortcutConfigScreen(index: Int, onDone: () -> Unit) {
                 SourceType.LOCAL_SAF -> {
                     Text(localUri?.let { "Folder: $it" } ?: "No folder chosen yet", color = Color.Gray)
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = { pickFolder.launch(null) }) { Text("Choose folder (USB/SD)") }
+                    Button(onClick = {
+                        pickerError = null
+                        // Some stripped-down head unit ROMs have no
+                        // DocumentsUI app at all to handle this intent —
+                        // without the try/catch this crashes the whole app
+                        // instead of just failing to open a picker.
+                        runCatching { pickFolder.launch(null) }
+                            .onFailure { pickerError = "Nessuna app di selezione cartelle trovata su questo dispositivo — usa il percorso manuale qui sotto." }
+                    }) { Text("Choose folder (USB/SD)") }
+                    pickerError?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(it, color = Color(0xFFFF8A65), fontSize = 12.sp)
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+                    HorizontalDivider(color = Color(0xFF333333))
+                    Spacer(Modifier.height(12.dp))
+                    Text("Oppure percorso manuale (se la scelta cartella non funziona)", color = Color.Gray, fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = manualPath, onValueChange = { manualPath = it },
+                        label = { Text("es. /storage/usb0/Music") }, modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(onClick = {
+                        if (manualPath.isNotBlank()) {
+                            localUri = LocalPathBrowser.wrap(manualPath.trim())
+                            pickerError = null
+                        }
+                    }) { Text("Usa questo percorso") }
                 }
                 SourceType.FTP -> {
                     OutlinedTextField(ftpHost, { ftpHost = it }, label = { Text("Host / IP") }, modifier = Modifier.fillMaxWidth())
@@ -111,6 +143,7 @@ fun ShortcutConfigScreen(index: Int, onDone: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Save") }
+            Spacer(Modifier.height(32.dp))
         }
     }
 }

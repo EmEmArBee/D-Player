@@ -58,6 +58,11 @@ class MainActivity : ComponentActivity() {
         PlaybackServiceBridge.setVisualizerPermission(hasRecord)
         val toAsk = mutableListOf<String>()
         if (!hasRecord) toAsk += Manifest.permission.RECORD_AUDIO
+        // Backs the manual-path USB/SD fallback (LocalPathBrowser) — only
+        // meaningful up to API 29, harmless no-op request above that.
+        if (Build.VERSION.SDK_INT <= 29 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) toAsk += Manifest.permission.READ_EXTERNAL_STORAGE
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) toAsk += Manifest.permission.POST_NOTIFICATIONS
