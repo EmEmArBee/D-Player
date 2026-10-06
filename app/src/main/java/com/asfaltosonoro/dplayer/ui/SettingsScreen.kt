@@ -119,6 +119,18 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
             onCheckedChange = { skinManager.save(skin.copy(showAlbumArtOverlay = it)); skin = skinManager.load() },
         )
 
+        SectionLabel("Volume")
+        var showVolumeButtons by remember { mutableStateOf(prefs.showVolumeButtons) }
+        SwitchRow(
+            label = "Show on-screen volume/mute buttons",
+            checked = showVolumeButtons,
+            onCheckedChange = { showVolumeButtons = it; prefs.showVolumeButtons = it },
+        )
+        Text(
+            "Use this if the head unit's physical volume keys don't work with the app.",
+            color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+
         SectionLabel("Visualizer")
         SwitchRow(
             label = "Full Screen VU-Meters",

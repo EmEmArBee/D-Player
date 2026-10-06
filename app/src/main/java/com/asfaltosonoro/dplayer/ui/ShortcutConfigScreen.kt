@@ -131,7 +131,12 @@ fun ShortcutConfigScreen(index: Int, onDone: () -> Unit) {
             Button(
                 onClick = {
                     val uri = when (type) {
-                        SourceType.LOCAL_SAF -> localUri ?: return@Button
+                        // Falls back to whatever is typed in the manual-path
+                        // field even if "Usa questo percorso" was never
+                        // tapped — Save should just work off what's on screen.
+                        SourceType.LOCAL_SAF -> localUri
+                            ?: manualPath.trim().takeIf { it.isNotBlank() }?.let { LocalPathBrowser.wrap(it) }
+                            ?: return@Button
                         SourceType.FTP -> {
                             val userinfo = if (ftpUser.isNotBlank()) "$ftpUser${if (ftpPass.isNotBlank()) ":$ftpPass" else ""}@" else ""
                             "ftp://$userinfo$ftpHost:${ftpPort.ifBlank { "21" }}${if (ftpPath.startsWith("/")) ftpPath else "/$ftpPath"}"

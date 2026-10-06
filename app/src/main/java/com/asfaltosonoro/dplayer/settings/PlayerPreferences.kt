@@ -64,4 +64,11 @@ class PlayerPreferences(context: Context) {
     var crossfadeSeconds: Int
         get() = prefs.getInt("crossfade_seconds", 4)
         set(value) = prefs.edit { putInt("crossfade_seconds", value) }
+
+    /** On-screen volume +/- and mute buttons — for head units where the
+     *  physical volume keys don't reach standard Android key dispatch.
+     *  Defaults on since that's exactly the situation this was added for. */
+    var showVolumeButtons: Boolean
+        get() = prefs.getBoolean("show_volume_buttons", true)
+        set(value) = prefs.edit { putBoolean("show_volume_buttons", value) }
 }
