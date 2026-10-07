@@ -89,7 +89,15 @@ fun FileBrowserScreen(
         val mediaItems = audioItems.map { entry ->
             MediaItem.Builder()
                 .setUri(Uri.parse(browser.resolvePlaybackUri(entry)))
-                .setMediaMetadata(MediaMetadata.Builder().setTitle(entry.name).build())
+                .setMediaMetadata(
+                    // When "use ID3 tags" is on, don't set a title here —
+                    // leaving it unset lets Media3 fill Player.mediaMetadata
+                    // in from the file's own embedded metadata once it
+                    // starts reading the stream. Setting it explicitly (as
+                    // the filename) would take priority over that.
+                    if (prefs.showIdTagsInsteadOfFilename) MediaMetadata.Builder().build()
+                    else MediaMetadata.Builder().setTitle(entry.name).build(),
+                )
                 .build()
         }
         val clampedStart = startIndex.coerceIn(0, mediaItems.lastIndex)

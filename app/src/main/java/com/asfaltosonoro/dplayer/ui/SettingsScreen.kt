@@ -119,6 +119,18 @@ fun SettingsScreen(onBack: () -> Unit, onConfigureShortcut: (Int) -> Unit, onOpe
             onCheckedChange = { skinManager.save(skin.copy(showAlbumArtOverlay = it)); skin = skinManager.load() },
         )
 
+        SectionLabel("Now playing")
+        var showIdTags by remember { mutableStateOf(prefs.showIdTagsInsteadOfFilename) }
+        SwitchRow(
+            label = "Show ID3/stream tags instead of file name",
+            checked = showIdTags,
+            onCheckedChange = { showIdTags = it; prefs.showIdTagsInsteadOfFilename = it },
+        )
+        Text(
+            "Affects tracks played from here on — files already queued keep showing what they were given.",
+            color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+
         SectionLabel("Volume")
         var showVolumeButtons by remember { mutableStateOf(prefs.showVolumeButtons) }
         SwitchRow(

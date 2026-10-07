@@ -71,4 +71,11 @@ class PlayerPreferences(context: Context) {
     var showVolumeButtons: Boolean
         get() = prefs.getBoolean("show_volume_buttons", true)
         set(value) = prefs.edit { putBoolean("show_volume_buttons", value) }
+
+    /** false (default): title shows the file name. true: title shows the
+     *  track's own ID3/stream metadata (needs the MediaItem built with no
+     *  explicit title so Media3 fills it in from the file itself). */
+    var showIdTagsInsteadOfFilename: Boolean
+        get() = prefs.getBoolean("show_id_tags", false)
+        set(value) = prefs.edit { putBoolean("show_id_tags", value) }
 }
